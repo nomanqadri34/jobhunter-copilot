@@ -1,0 +1,12 @@
+flask
+requests
+spacy
+PyPDF2
+numpy
+spacy
+pandas
+numpy
+scikit-learn
+nltk    
+beautifulsoup4
+lxml
