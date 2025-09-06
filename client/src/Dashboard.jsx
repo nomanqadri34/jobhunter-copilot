@@ -57,8 +57,30 @@ const Dashboard = () => {
     setJobSearchError(null);
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/jobs/search", // Backend API endpoint
+        "http://localhost:5000/api/jobs/search",
         jobPreferences,
+        {
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        }
+      );
+      setJobs(response.data);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+      setJobSearchError("Failed to fetch jobs. Please try again.");
+    } finally {
+      setLoadingJobs(false);
+    }
+  };
+
+  const fetchJobsWithPreferences = async (preferences) => {
+    setLoadingJobs(true);
+    setJobSearchError(null);
+    try {
+      const response = await axios.post(
+        "http://localhost:5000/api/jobs/search",
+        preferences,
         {
           headers: {
             Authorization: `Bearer ${sessionToken}`,
@@ -88,10 +110,10 @@ const Dashboard = () => {
     try {
       const response = await axios.post(
         "http://localhost:5000/api/interview/prepare",
-        { 
-          jobTitle: interviewJobTitle, 
+        {
+          jobTitle: interviewJobTitle,
           experience: interviewExperience,
-          skills: jobPreferences.skills
+          skills: jobPreferences.skills,
         },
         {
           headers: {
@@ -161,7 +183,8 @@ const Dashboard = () => {
       console.error("Error sending WhatsApp alert:", error);
       setWhatsappResponse({
         success: false,
-        message: error.response?.data?.message || "Failed to send WhatsApp alert.",
+        message:
+          error.response?.data?.message || "Failed to send WhatsApp alert.",
       });
     }
   };
@@ -169,11 +192,11 @@ const Dashboard = () => {
   const handleResumeUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     setUploadingResume(true);
     const formData = new FormData();
-    formData.append('resume', file);
-    
+    formData.append("resume", file);
+
     try {
       const response = await axios.post(
         "http://localhost:5000/api/resume/upload",
@@ -181,26 +204,33 @@ const Dashboard = () => {
         {
           headers: {
             Authorization: `Bearer ${sessionToken}`,
-            'Content-Type': 'multipart/form-data'
+            "Content-Type": "multipart/form-data",
           },
         }
       );
       setResumeData(response.data);
-      
-      // Auto-fill preferences from resume
+
+      // Auto-fill preferences and trigger job search
       const suggestions = response.data.suggested_preferences;
       if (suggestions) {
-        setJobPreferences({
-          jobTitle: suggestions.jobTitle || jobPreferences.jobTitle,
-          location: jobPreferences.location,
-          experienceLevel: suggestions.experienceLevel || jobPreferences.experienceLevel,
-          jobType: jobPreferences.jobType,
-          skills: suggestions.skills || jobPreferences.skills
-        });
+        const autoPreferences = {
+          jobTitle: suggestions.jobTitle || "Software Developer",
+          location: "Remote",
+          experienceLevel: suggestions.experienceLevel || "associate",
+          jobType: "full-time",
+          skills: suggestions.skills || "",
+        };
+        setJobPreferences(autoPreferences);
+
+        // Automatically search for jobs based on resume
+        fetchJobsWithPreferences(autoPreferences);
       }
     } catch (error) {
       console.error("Error uploading resume:", error);
-      const errorMessage = error.response?.data?.message || error.message || "Failed to upload resume";
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to upload resume";
       alert(`Resume upload failed: ${errorMessage}`);
     } finally {
       setUploadingResume(false);
@@ -308,165 +338,188 @@ const Dashboard = () => {
           />
           {uploadingResume && <p>Uploading and parsing resume...</p>}
           {resumeData && (
-            <div style={{ marginTop: "10px", padding: "10px", backgroundColor: "#f0f8ff", borderRadius: "4px" }}>
-              <p><strong>Resume parsed successfully!</strong></p>
-              <p>Extracted skills and preferences will be used for job matching.</p>
+            <div
+              style={{
+                marginTop: "10px",
+                padding: "15px",
+                backgroundColor: "#f0f8ff",
+                borderRadius: "4px",
+              }}
+            >
+              <p>
+                <strong>Resume parsed successfully!</strong>
+              </p>
+              <p>
+                <strong>Auto-generated preferences:</strong>
+              </p>
+              <ul style={{ margin: "10px 0", paddingLeft: "20px" }}>
+                <li>Job Title: {jobPreferences.jobTitle}</li>
+                <li>Experience Level: {jobPreferences.experienceLevel}</li>
+                <li>Skills: {jobPreferences.skills}</li>
+              </ul>
+              <p style={{ color: "green" }}>
+                🔍 Searching for matching jobs...
+              </p>
             </div>
           )}
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: "30px",
-          borderTop: "1px solid #eee",
-          paddingTop: "20px",
-        }}
-      >
-        <h2>Set Your Job Preferences</h2>
-        <form
-          onSubmit={handleSubmit}
+      {!resumeData && (
+        <div
           style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "15px",
-            maxWidth: "500px",
+            marginTop: "30px",
+            borderTop: "1px solid #eee",
+            paddingTop: "20px",
           }}
         >
-          <div>
-            <label
-              htmlFor="jobTitle"
-              style={{ display: "block", marginBottom: "5px" }}
-            >
-              Job Title:
-            </label>
-            <input
-              type="text"
-              id="jobTitle"
-              name="jobTitle"
-              value={jobPreferences.jobTitle}
-              onChange={handleChange}
-              style={{
-                width: "100%",
-                padding: "8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
-              required
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="location"
-              style={{ display: "block", marginBottom: "5px" }}
-            >
-              Location:
-            </label>
-            <input
-              type="text"
-              id="location"
-              name="location"
-              value={jobPreferences.location}
-              onChange={handleChange}
-              style={{
-                width: "100%",
-                padding: "8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="experienceLevel"
-              style={{ display: "block", marginBottom: "5px" }}
-            >
-              Experience Level:
-            </label>
-            <select
-              id="experienceLevel"
-              name="experienceLevel"
-              value={jobPreferences.experienceLevel}
-              onChange={handleChange}
-              style={{
-                width: "100%",
-                padding: "8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
-            >
-              <option value="">Select...</option>
-              <option value="entry">Entry Level</option>
-              <option value="associate">Associate</option>
-              <option value="mid">Mid-Senior Level</option>
-              <option value="director">Director</option>
-              <option value="executive">Executive</option>
-            </select>
-          </div>
-          <div>
-            <label
-              htmlFor="jobType"
-              style={{ display: "block", marginBottom: "5px" }}
-            >
-              Job Type:
-            </label>
-            <select
-              id="jobType"
-              name="jobType"
-              value={jobPreferences.jobType}
-              onChange={handleChange}
-              style={{
-                width: "100%",
-                padding: "8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
-            >
-              <option value="">Select...</option>
-              <option value="full-time">Full-time</option>
-              <option value="part-time">Part-time</option>
-              <option value="contract">Contract</option>
-              <option value="temporary">Temporary</option>
-              <option value="internship">Internship</option>
-            </select>
-          </div>
-          <div>
-            <label
-              htmlFor="skills"
-              style={{ display: "block", marginBottom: "5px" }}
-            >
-              Skills (comma-separated):
-            </label>
-            <input
-              type="text"
-              id="skills"
-              name="skills"
-              value={jobPreferences.skills}
-              onChange={handleChange}
-              style={{
-                width: "100%",
-                padding: "8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
-            />
-          </div>
-          <button
-            type="submit"
+          <h2>
+            Set Your Job Preferences (Optional - Upload Resume for Auto-Fill)
+          </h2>
+          <form
+            onSubmit={handleSubmit}
             style={{
-              padding: "10px 20px",
-              backgroundColor: "#007bff",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontSize: "16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "15px",
+              maxWidth: "500px",
             }}
           >
-            Save Preferences
-          </button>
-        </form>
-      </div>
+            <div>
+              <label
+                htmlFor="jobTitle"
+                style={{ display: "block", marginBottom: "5px" }}
+              >
+                Job Title:
+              </label>
+              <input
+                type="text"
+                id="jobTitle"
+                name="jobTitle"
+                value={jobPreferences.jobTitle}
+                onChange={handleChange}
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                }}
+                required
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="location"
+                style={{ display: "block", marginBottom: "5px" }}
+              >
+                Location:
+              </label>
+              <input
+                type="text"
+                id="location"
+                name="location"
+                value={jobPreferences.location}
+                onChange={handleChange}
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                }}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="experienceLevel"
+                style={{ display: "block", marginBottom: "5px" }}
+              >
+                Experience Level:
+              </label>
+              <select
+                id="experienceLevel"
+                name="experienceLevel"
+                value={jobPreferences.experienceLevel}
+                onChange={handleChange}
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                }}
+              >
+                <option value="">Select...</option>
+                <option value="entry">Entry Level</option>
+                <option value="associate">Associate</option>
+                <option value="mid">Mid-Senior Level</option>
+                <option value="director">Director</option>
+                <option value="executive">Executive</option>
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="jobType"
+                style={{ display: "block", marginBottom: "5px" }}
+              >
+                Job Type:
+              </label>
+              <select
+                id="jobType"
+                name="jobType"
+                value={jobPreferences.jobType}
+                onChange={handleChange}
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                }}
+              >
+                <option value="">Select...</option>
+                <option value="full-time">Full-time</option>
+                <option value="part-time">Part-time</option>
+                <option value="contract">Contract</option>
+                <option value="temporary">Temporary</option>
+                <option value="internship">Internship</option>
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="skills"
+                style={{ display: "block", marginBottom: "5px" }}
+              >
+                Skills (comma-separated):
+              </label>
+              <input
+                type="text"
+                id="skills"
+                name="skills"
+                value={jobPreferences.skills}
+                onChange={handleChange}
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                }}
+              />
+            </div>
+            <button
+              type="submit"
+              style={{
+                padding: "10px 20px",
+                backgroundColor: "#007bff",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "16px",
+              }}
+            >
+              Save Preferences
+            </button>
+          </form>
+        </div>
+      )}
 
       <div
         style={{
@@ -558,13 +611,15 @@ const Dashboard = () => {
         {interviewRoadmap && (
           <div style={{ marginTop: "20px" }}>
             <h3>Interview Preparation Roadmap:</h3>
-            <div style={{ 
-              backgroundColor: "#f8f9fa", 
-              padding: "15px", 
-              borderRadius: "8px",
-              whiteSpace: "pre-wrap",
-              lineHeight: "1.6"
-            }}>
+            <div
+              style={{
+                backgroundColor: "#f8f9fa",
+                padding: "15px",
+                borderRadius: "8px",
+                whiteSpace: "pre-wrap",
+                lineHeight: "1.6",
+              }}
+            >
               {interviewRoadmap}
             </div>
           </div>
@@ -572,25 +627,45 @@ const Dashboard = () => {
         {youtubeVideos.length > 0 && (
           <div style={{ marginTop: "20px" }}>
             <h3>Recommended YouTube Videos:</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "15px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+                gap: "15px",
+              }}
+            >
               {youtubeVideos.map((video, index) => (
-                <div key={index} style={{
-                  border: "1px solid #ddd",
-                  borderRadius: "8px",
-                  padding: "10px",
-                  backgroundColor: "#fff"
-                }}>
-                  <img src={video.thumbnail} alt={video.title} style={{ width: "100%", borderRadius: "4px" }} />
-                  <h4 style={{ margin: "10px 0 5px 0", fontSize: "14px" }}>{video.title}</h4>
-                  <a href={video.url} target="_blank" rel="noopener noreferrer" style={{
-                    display: "inline-block",
-                    padding: "5px 10px",
-                    backgroundColor: "#ff0000",
-                    color: "white",
-                    textDecoration: "none",
-                    borderRadius: "4px",
-                    fontSize: "12px"
-                  }}>
+                <div
+                  key={index}
+                  style={{
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    padding: "10px",
+                    backgroundColor: "#fff",
+                  }}
+                >
+                  <img
+                    src={video.thumbnail}
+                    alt={video.title}
+                    style={{ width: "100%", borderRadius: "4px" }}
+                  />
+                  <h4 style={{ margin: "10px 0 5px 0", fontSize: "14px" }}>
+                    {video.title}
+                  </h4>
+                  <a
+                    href={video.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-block",
+                      padding: "5px 10px",
+                      backgroundColor: "#ff0000",
+                      color: "white",
+                      textDecoration: "none",
+                      borderRadius: "4px",
+                      fontSize: "12px",
+                    }}
+                  >
                     Watch on YouTube
                   </a>
                 </div>
@@ -774,28 +849,64 @@ const Dashboard = () => {
                   boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                 }}
               >
-                <h3>{job.title}</h3>
-                <p>
+                <h3 style={{ color: "#2c3e50", marginBottom: "10px" }}>
+                  {job.title}
+                </h3>
+                <p style={{ margin: "5px 0" }}>
                   <strong>Company:</strong> {job.company}
                 </p>
-                <p>
+                <p style={{ margin: "5px 0" }}>
                   <strong>Location:</strong> {job.location}
                 </p>
-                <p>{job.description}</p>
-                <button
-                  onClick={() => handleSetReminder(job)}
-                  style={{
-                    marginTop: "10px",
-                    padding: "8px 12px",
-                    backgroundColor: "#28a745",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
+                {job.salary && (
+                  <p
+                    style={{
+                      margin: "5px 0",
+                      color: "#27ae60",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    <strong>Salary:</strong> {job.salary}
+                  </p>
+                )}
+                <p style={{ margin: "10px 0", lineHeight: "1.4" }}>
+                  {job.description}
+                </p>
+                <div
+                  style={{ display: "flex", gap: "10px", marginTop: "15px" }}
                 >
-                  Set Calendar Reminder
-                </button>
+                  {job.url && (
+                    <a
+                      href={job.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: "8px 16px",
+                        backgroundColor: "#007bff",
+                        color: "white",
+                        textDecoration: "none",
+                        borderRadius: "4px",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Apply Now
+                    </a>
+                  )}
+                  <button
+                    onClick={() => handleSetReminder(job)}
+                    style={{
+                      padding: "8px 12px",
+                      backgroundColor: "#28a745",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Set Reminder
+                  </button>
+                </div>
               </div>
             ))}
           </div>
